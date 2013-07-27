@@ -61,8 +61,8 @@ is the same as
     // find the ids of all records with name matching "chair" and
     rows = db(db.thing.id.belongs(ids)).select()
 
-How the record matching is done depends on the backend. In the Simple case it converts the text to lower case  and break the text into tokens (worlds longer then 3 alphanumeric chars), then looks for all indexed records which contain all tokens in the queries text. It returns the first 20 entries found. In the Whoosh case and the Solr case it returns the closest matches, defined by others and more complex algorithms.
+## Caveats
 
+- How the record matching is done depends on the backend. In the Simple case it converts the text to lower case  and break the text into tokens (worlds longer then 3 alphanumeric chars), then looks for all indexed records which contain all tokens in the queries text. It returns the first 20 entries found. In the Whoosh case and the Solr case it returns the closest matches, defined by others and more complex algorithms.
 
-
-
+- Web2py does automatic migrations. Haystack does not. This means you cannot simply change the list of indexed fields and expect the index to work. Eventually there should be a way to rebuild the indexes but this has not been implemented yet.
