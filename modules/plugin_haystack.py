@@ -20,7 +20,7 @@ print db(query).select()
 
 import re
 import os
-from gluon import Field
+from gluon import Field, DAL
 
 DEBUG = False
 
@@ -41,12 +41,12 @@ class SimpleBackend(object):
     def after_insert(self,fields,id):
         if DEBUG: print 'after insert',fields,id
         for fieldname in self.fieldnames:            
-            words = set(self.regex.findall(fields[fieldname].lower())) - self.ignore
-            for word in words:
-                self.idx.insert(
-                    fieldname = fieldname,
-                    keyword = word,
-                    record_id = id)
+            matches = self.regex.findall(fields[fieldname].lower())
+            words = set(matches) - self.ignore
+            self.idx.bulk_insert([
+                    {'fieldname': fieldname,
+                     'keyword': word,
+                     'record_id': id} for word in words])
         if DEBUG: print self.db(self.idx).select()
         return True
     def before_update(self,queryset,fields):
