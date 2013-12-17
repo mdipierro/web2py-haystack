@@ -1,7 +1,7 @@
 """
 plugin_haystack.py
 
-This file is an experimental part of the web2py. 
+This file is an experimental part of the web2py.
 It allows full text search using database, Whoosh, or Solr.
 Author: Massimo Di Pierro
 License: LGPL
@@ -20,9 +20,9 @@ print db(query).select()
 
 import re
 import os
-from gluon import Field, DAL
+from gluon import Field
 
-DEBUG = False
+DEBUG = True
 
 class SimpleBackend(object):
     regex = re.compile('[\w\-]{2}[\w\-]+')
@@ -40,17 +40,17 @@ class SimpleBackend(object):
         return self
     def after_insert(self,fields,id):
         if DEBUG: print 'after insert',fields,id
-        for fieldname in self.fieldnames:            
-            matches = self.regex.findall(fields[fieldname].lower())
-            words = set(matches) - self.ignore
-            self.idx.bulk_insert([
-                    {'fieldname': fieldname,
-                     'keyword': word,
-                     'record_id': id} for word in words])
+        for fieldname in self.fieldnames:
+            words = set(self.regex.findall(fields[fieldname].lower())) - self.ignore
+            for word in words:
+                self.idx.insert(
+                    fieldname = fieldname,
+                    keyword = word,
+                    record_id = id)
         if DEBUG: print self.db(self.idx).select()
         return True
-    def before_update(self,queryset,fields):
-        if DEBUG: print 'before update',queryset,fields
+    def after_update(self,queryset,fields):
+        if DEBUG: print 'after update',queryset,fields
         db = self.db
         for id in self.get_ids(queryset):
             for fieldname in self.fieldnames:
@@ -59,7 +59,7 @@ class SimpleBackend(object):
                     existing_words = set(r.keyword for r in db(
                             (self.idx.fieldname == fieldname)&
                             (self.idx.record_id==id)
-                            ).select(self.idx.keyword))                
+                            ).select(self.idx.keyword))
                     db((self.idx.fieldname == fieldname)&
                        (self.idx.record_id==id)&
                        (self.idx.keyword.belongs(list(existing_words - words)))
@@ -73,10 +73,10 @@ class SimpleBackend(object):
         return True
     def get_ids(self,queryset):
         return [r.id for r in queryset.select(self.table._id)]
-    def before_delete(self,queryset):
-        if DEBUG: print 'before delete',queryset
+    def after_delete(self,queryset):
+        if DEBUG: print 'after delete',queryset
         ids = self.get_ids(queryset)
-        self.db(self.idx.record_id.belongs(ids)).delete()        
+        self.db(self.idx.record_id.belongs(ids)).delete()
         if DEBUG: print self.db(self.idx).select()
         return True
     def meta_search(self,limit,mode,**fieldkeys):
@@ -86,7 +86,7 @@ class SimpleBackend(object):
             if fieldname in self.fieldnames:
                 words = set(self.regex.findall(fieldkeys[fieldname].lower()))
                 meta_query = ((self.idx.fieldname==fieldname)&
-                              (self.idx.keyword.belongs(list(words))))                
+                              (self.idx.keyword.belongs(list(words))))
                 new_ids = set(r.record_id for r in db(meta_query).select(
                         limitby=(0,limit)))
                 if mode == 'and':
@@ -114,7 +114,7 @@ class WhooshBackend(SimpleBackend):
         except:
             schema = Schema(id=ID(unique=True,stored=True),
                             **dict((k,TEXT) for k in fieldnames))
-            self.ix = create_in(self.indexdir, schema)        
+            self.ix = create_in(self.indexdir, schema)
     def after_insert(self,fields,id):
         if DEBUG: print 'after insert',fields,id
         writer = self.ix.writer()
@@ -123,8 +123,8 @@ class WhooshBackend(SimpleBackend):
                                    for name in self.fieldnames if name in fields))
         writer.commit()
         return True
-    def before_update(self,queryset,fields):
-        if DEBUG: print 'before update',queryset,fields
+    def after_update(self,queryset,fields):
+        if DEBUG: print 'after update',queryset,fields
         ids = self.get_ids(queryset)
         if ids:
             writer = self.ix.writer()
@@ -134,8 +134,8 @@ class WhooshBackend(SimpleBackend):
                                               for name in self.fieldnames if name in fields))
             writer.commit()
         return True
-    def before_delete(self,queryset):
-        if DEBUG: print 'before delete',queryset
+    def after_delete(self,queryset):
+        if DEBUG: print 'after delete',queryset
         ids = self.get_ids(queryset)
         if ids:
             writer = self.ix.writer()
@@ -187,9 +187,9 @@ class SolrBackend(SimpleBackend):
         self.interface.add([document])
         self.interface.commit()
         return True
-    def before_update(self,queryset,fields):
+    def after_update(self,queryset,fields):
         """ caveat, this should work but only if ALL indexed fields are updated at once """
-        if DEBUG: print 'before update',queryset,fields
+        if DEBUG: print 'after update',queryset,fields
         ids = self.get_ids(queryset)
         self.interface.delete(ids)
         documents = []
@@ -202,8 +202,8 @@ class SolrBackend(SimpleBackend):
         self.interface.add(documents)
         self.interface.commit()
         return True
-    def before_delete(self,queryset):
-        if DEBUG: print 'before delete',queryset
+    def after_delete(self,queryset):
+        if DEBUG: print 'after delete',queryset
         ids = self.get_ids(queryset)
         self.interface.delete(ids)
         self.interface.commit()
@@ -220,17 +220,17 @@ class Haystack(object):
         self.table = table
         self.backend = backend(table,**attr)
     def indexes(self,*fieldnames):
-        invalid = [f for f in fieldnames if not f in self.table.fields() or 
+        invalid = [f for f in fieldnames if not f in self.table.fields() or
                    not self.table[f].type in ('string','text')]
         if invalid:
             raise RuntimeError("Unable to index fields: %s" % ', '.join(invalid))
         self.backend.indexes(*fieldnames)
         self.table._after_insert.append(
             lambda fields,id: self.backend.after_insert(fields,id))
-        self.table._before_update.append(
-            lambda queryset,fields: self.backend.before_update(queryset,fields))
-        self.table._before_delete.append(
-            lambda queryset: self.backend.before_delete(queryset))
+        self.table._after_update.append(
+            lambda queryset,fields: self.backend.after_update(queryset,fields))
+        self.table._after_delete.append(
+            lambda queryset: self.backend.after_delete(queryset))
     def search(self,limit=20,mode='and',**fieldkeys):
         ids = self.backend.meta_search(limit,mode,**fieldkeys)
         return self.table._id.belongs(ids)
@@ -266,8 +266,7 @@ def test(mode='simple'):
     assert db(index.search(name='table')).count()==0
     db.commit()
     db.close()
-    
+
 if __name__=='__main__':
     test('simple')
     test('whoosh')
-
