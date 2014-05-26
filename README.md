@@ -7,22 +7,22 @@ This is an experimental plugin to provide full text-search for web2py.
 Assume the following model:
 
     db = DAL()
-    db.define_table('thing',Field('name'),Field('description'))
+    db.define_table('thing', Field('name'), Field('description'))
 
 You want to be able to perform full text search on the two fields of the above table. You do:
 
     from plugin_haystack import Haystack
     index = Haystack(db.thing)
-    index.indexes('name','description')
+    index.indexes('name', 'description')
 
-This will create indexes for all new records inserted, modified, and deleted fro them above table. For example:
+This will create indexes for all new records inserted, modified, and deleted from the above table. For example:
 
-     db.thing.insert(name='Char',description='A char') # automatically indexed
+     db.thing.insert(name='Char', description='A char') # automatically indexed
      db(db.thing.id).update(description='The chair')   # automatically re-indexed
      db(db.thing).delete()                             # automatically re-indexed                                                                                            
 You can now use Haystack to build queries:
 
-     query = index.search(name='chair',description='chair')
+     query = index.search(name='chair', description='chair')
 
 and use in combinations with other DAL queries:
                                                                                                                     
@@ -36,11 +36,11 @@ and use in combinations with other DAL queries:
 
 *Whoosh* (you must `pip install whoosh`):
 
-    index = Haystack(db.thing,backend=WhooshBackend,indexdir='/path/to/index')
+    index = Haystack(db.thing, backend=WhooshBackend, indexdir='/path/to/index')
 
 *Solr* (you must install and run Solr, and `pip install sunburnt`)
 
-    index = Haystack(db.thing,backend=SolrBackend,url='https://localhost:8983')
+    index = Haystack(db.thing, backend=SolrBackend, url='https://localhost:8983')
 
 ## How does it works?
 
