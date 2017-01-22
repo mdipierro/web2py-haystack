@@ -104,7 +104,7 @@ class WhooshBackend(SimpleBackend):
             os.mkdir(indexdir)
     def indexes(self,*fieldnames):
         try:
-            from whoosh.index import create_in
+            from whoosh.index import create_in, open_dir
             from whoosh.fields import Schema, TEXT, ID
         except ImportError:
             raise ImportError("Cannot find Whoosh")
